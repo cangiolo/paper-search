@@ -1,6 +1,6 @@
 # paper-search
 
-> **Pure academic discovery CLI** — aggregates 7 sources, exports to reference managers, traces citations. No PDF download (pair with [paper-fetch](https://github.com/Agents365-ai/paper-fetch) for that).
+> **Pure academic discovery CLI** — aggregates 7 sources, exports to reference managers, traces citations. Search and metadata only; PDF download is out of scope.
 
 [English](#english) | [中文](#中文)
 
@@ -12,7 +12,7 @@
 
 `paper-search` is a single-responsibility CLI tool for finding academic papers. It queries **7 sources in parallel**, deduplicates by DOI, enriches results with OA status and TLDR summaries, and exports to formats your reference manager actually understands (CSV, BibTeX, RIS).
 
-It does **not** download PDFs — that is `paper-fetch`'s job. Pipe `--doi-only` output into `paper-fetch --batch -` to chain the two.
+It is **search-only**. The `--doi-only` mode produces a clean newline-delimited DOI list that any downloader can consume.
 
 ### Sources (7 total)
 
@@ -50,9 +50,8 @@ python scripts/search.py search "AlphaFold" --limit 30 --format csv    > papers.
 python scripts/search.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
 python scripts/search.py search "AlphaFold" --limit 30 --format ris    > papers.ris
 
-# Chain into paper-fetch for PDF download
-python scripts/search.py search "AlphaFold" --limit 10 --doi-only \
-    | python ~/.claude/skills/paper-fetch/scripts/fetch.py --batch -
+# Produce a clean DOI list (newline-delimited, machine-readable)
+python scripts/search.py search "AlphaFold" --limit 10 --doi-only > dois.txt
 ```
 
 ### Output formats
@@ -80,16 +79,9 @@ export SEMANTIC_SCHOLAR_API_KEY="..."              # optional, raises rate limit
 pip install scholarly   # enables --source google_scholar
 ```
 
-### Relationship to paper-fetch
+### License
 
-| | paper-search | paper-fetch |
-|---|--------------|-------------|
-| Role | Discovery + filtering + tracing + export | PDF retrieval |
-| Output | DOI lists, metadata, references | PDF files |
-| Sources | 7 (search) | 7 (download) |
-| Rate-limit aware | ✅ | ✅ |
-
-Pipe `paper-search --doi-only` → `paper-fetch --batch -` for a complete pipeline.
+MIT License
 
 ---
 
@@ -99,7 +91,7 @@ Pipe `paper-search --doi-only` → `paper-fetch --batch -` for a complete pipeli
 
 `paper-search` 是一个**单一职责的学术文献发现 CLI**：并行查询 7 个学术库，按 DOI 去重融合，标注 OA 开放状态和 TLDR 摘要，导出为文献管理软件能直接吃的格式（CSV/BibTeX/RIS）。
 
-**不下载 PDF**——那是 [paper-fetch](https://github.com/Agents365-ai/paper-fetch) 的职责。把 `--doi-only` 输出管道到 `paper-fetch --batch -` 就能串成完整流水线。
+**只做搜索，不下 PDF**。`--doi-only` 模式输出干净的换行分隔 DOI 列表，任何下载工具都能消费。
 
 ### 数据源（共 7 个）
 
@@ -137,9 +129,8 @@ python scripts/search.py search "AlphaFold" --limit 30 --format csv    > papers.
 python scripts/search.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
 python scripts/search.py search "AlphaFold" --limit 30 --format ris    > papers.ris
 
-# 串联 paper-fetch 下载 PDF
-python scripts/search.py search "AlphaFold" --limit 10 --doi-only \
-    | python ~/.claude/skills/paper-fetch/scripts/fetch.py --batch -
+# 输出纯 DOI 列表（每行一个，机器可读）
+python scripts/search.py search "AlphaFold" --limit 10 --doi-only > dois.txt
 ```
 
 ### 环境变量
@@ -149,16 +140,11 @@ export UNPAYWALL_EMAIL="your-email@example.com"   # 检查 OA 状态时必需
 export SEMANTIC_SCHOLAR_API_KEY="..."              # 可选，提高 S2 速率上限
 ```
 
-### 与 paper-fetch 的关系
+### 可选依赖
 
-| 维度 | paper-search | paper-fetch |
-|---|--------------|-------------|
-| 职责 | 发现 + 过滤 + 引用追踪 + 导出 | 下载 PDF |
-| 输出 | DOI 列表、元数据、参考文献 | PDF 文件 |
-| 数据源数 | 7 (搜索) | 7 (下载) |
-| 限速友好 | ✅ | ✅ |
-
-两个工具相互独立但语义化对接：`paper-search --doi-only | paper-fetch --batch -`。
+```bash
+pip install scholarly   # 启用 --source google_scholar
+```
 
 ### 许可
 
