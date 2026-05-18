@@ -24,6 +24,7 @@ try:
     from search_s2 import search_s2, get_paper, get_citations, get_references
     from search_pubmed import search as search_pubmed
     from search_arxiv import search as search_arxiv
+    from search_biorxiv import search as search_biorxiv
     from search_scholarly import search as search_scholarly, SCHOLARLY_AVAILABLE
 except ImportError as e:
     print(f"Error importing modules: {e}", file=sys.stderr)
@@ -131,6 +132,20 @@ def unified_search(
             year_from=year_from, year_to=year_to,
             author=author,
             full_abstract=full_abstract,
+        ))
+
+    if source in ("auto", "biorxiv"):
+        results.extend(search_biorxiv(
+            query, limit=per_source_limit, server="biorxiv",
+            year_from=year_from, year_to=year_to,
+            author=author, full_abstract=full_abstract,
+        ))
+
+    if source in ("auto", "medrxiv"):
+        results.extend(search_biorxiv(
+            query, limit=per_source_limit, server="medrxiv",
+            year_from=year_from, year_to=year_to,
+            author=author, full_abstract=full_abstract,
         ))
 
     if source in ("auto", "google_scholar"):
@@ -300,7 +315,7 @@ def main():
     # search cmd
     parser_search = subparsers.add_parser("search", help="纯搜索，返回论文列表")
     parser_search.add_argument("query", help="搜索关键词")
-    parser_search.add_argument("--source", choices=["auto", "openalex", "s2", "pubmed", "arxiv", "google_scholar"], default="auto", help="数据源")
+    parser_search.add_argument("--source", choices=["auto", "openalex", "s2", "pubmed", "arxiv", "biorxiv", "medrxiv", "google_scholar"], default="auto", help="数据源")
     parser_search.add_argument("--limit", type=int, default=10, help="最多返回数量 (留空则无限制, 0表示无限制)")
     parser_search.add_argument("--sort", choices=["relevance_score", "cited_by_count", "publication_date"], default="relevance_score", help="排序方式")
     parser_search.add_argument("--year-from", type=int, default=None, help="发表年份下限")
@@ -316,7 +331,7 @@ def main():
     # grab cmd (search + download)
     parser_grab = subparsers.add_parser("grab", help="搜索 + 自动下载 OA PDF")
     parser_grab.add_argument("query", help="搜索关键词")
-    parser_grab.add_argument("--source", choices=["auto", "openalex", "s2", "pubmed", "arxiv", "google_scholar"], default="auto", help="数据源")
+    parser_grab.add_argument("--source", choices=["auto", "openalex", "s2", "pubmed", "arxiv", "biorxiv", "medrxiv", "google_scholar"], default="auto", help="数据源")
     parser_grab.add_argument("--limit", type=int, default=None, help="最多返回数量 (默认无限制)")
     parser_grab.add_argument("--sort", choices=["relevance_score", "cited_by_count", "publication_date"], default="relevance_score", help="排序方式")
     parser_grab.add_argument("--year-from", type=int, default=None, help="发表年份下限")
