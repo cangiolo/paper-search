@@ -22,6 +22,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 try:
     from search_openalex import search as search_openalex, format_table, format_compact, format_citation
     from search_s2 import search_s2, get_paper, get_citations, get_references
+    from search_pubmed import search as search_pubmed
+    from search_arxiv import search as search_arxiv
+    from search_scholarly import search as search_scholarly, SCHOLARLY_AVAILABLE
 except ImportError as e:
     print(f"Error importing modules: {e}", file=sys.stderr)
     sys.exit(1)
@@ -98,9 +101,11 @@ def unified_search(
     **kwargs,
 ) -> list[dict]:
     results = []
+    per_source_limit = limit if source != "auto" else (limit // 3 + 5 if limit else None)
+
     if source in ("auto", "openalex"):
         results.extend(search_openalex(
-            query, limit=limit, sort=sort,
+            query, limit=per_source_limit, sort=sort,
             year_from=year_from, year_to=year_to,
             journal=journal, author=author,
             full_abstract=full_abstract,
@@ -109,8 +114,36 @@ def unified_search(
     if source in ("auto", "s2"):
         # S2 does not support journal/author filtering or sort; skip when those are set
         if not journal and not author and sort == "relevance_score":
-            s2_results = search_s2(query, limit=limit, year_from=year_from, year_to=year_to, **kwargs)
+            s2_results = search_s2(query, limit=per_source_limit, year_from=year_from, year_to=year_to, **kwargs)
             results.extend(s2_results)
+
+    if source in ("auto", "pubmed"):
+        results.extend(search_pubmed(
+            query, limit=per_source_limit,
+            year_from=year_from, year_to=year_to,
+            journal=journal, author=author,
+            full_abstract=full_abstract,
+        ))
+
+    if source in ("auto", "arxiv"):
+        results.extend(search_arxiv(
+            query, limit=per_source_limit,
+            year_from=year_from, year_to=year_to,
+            author=author,
+            full_abstract=full_abstract,
+        ))
+
+    if source in ("auto", "google_scholar"):
+        if SCHOLARLY_AVAILABLE:
+            results.extend(search_scholarly(
+                query, limit=per_source_limit,
+                year_from=year_from, year_to=year_to,
+                journal=journal, author=author,
+                full_abstract=full_abstract,
+            ))
+        elif source == "google_scholar":
+            print("\n⚠️  Google Scholar 不可用。请安装 scholarly 库：", file=sys.stderr)
+            print("    pip install scholarly", file=sys.stderr)
 
     if source == "auto":
         results = _merge_dedup(results)
@@ -267,7 +300,7 @@ def main():
     # search cmd
     parser_search = subparsers.add_parser("search", help="纯搜索，返回论文列表")
     parser_search.add_argument("query", help="搜索关键词")
-    parser_search.add_argument("--source", choices=["auto", "openalex", "s2"], default="auto", help="数据源")
+    parser_search.add_argument("--source", choices=["auto", "openalex", "s2", "pubmed", "arxiv", "google_scholar"], default="auto", help="数据源")
     parser_search.add_argument("--limit", type=int, default=10, help="最多返回数量 (留空则无限制, 0表示无限制)")
     parser_search.add_argument("--sort", choices=["relevance_score", "cited_by_count", "publication_date"], default="relevance_score", help="排序方式")
     parser_search.add_argument("--year-from", type=int, default=None, help="发表年份下限")
@@ -279,11 +312,11 @@ def main():
     parser_search.add_argument("--citation-style", choices=["nsfc", "apa"], default="nsfc")
     parser_search.add_argument("--doi-only", action="store_true")
     parser_search.add_argument("--no-oa-check", action="store_true", help="跳过 Unpaywall 查询以加快速度")
-    
+
     # grab cmd (search + download)
     parser_grab = subparsers.add_parser("grab", help="搜索 + 自动下载 OA PDF")
     parser_grab.add_argument("query", help="搜索关键词")
-    parser_grab.add_argument("--source", choices=["auto", "openalex", "s2"], default="auto", help="数据源")
+    parser_grab.add_argument("--source", choices=["auto", "openalex", "s2", "pubmed", "arxiv", "google_scholar"], default="auto", help="数据源")
     parser_grab.add_argument("--limit", type=int, default=None, help="最多返回数量 (默认无限制)")
     parser_grab.add_argument("--sort", choices=["relevance_score", "cited_by_count", "publication_date"], default="relevance_score", help="排序方式")
     parser_grab.add_argument("--year-from", type=int, default=None, help="发表年份下限")
