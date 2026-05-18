@@ -88,18 +88,29 @@ def unified_search(
     query: str,
     limit: int | None = 10,
     source: str = "auto",
+    sort: str = "relevance_score",
     year_from: int | None = None,
     year_to: int | None = None,
+    journal: str | None = None,
+    author: str | None = None,
+    full_abstract: bool = False,
     enrich_oa: bool = True,
     **kwargs,
 ) -> list[dict]:
     results = []
     if source in ("auto", "openalex"):
-        results.extend(search_openalex(query, limit=limit, year_from=year_from, year_to=year_to, **kwargs))
-    
+        results.extend(search_openalex(
+            query, limit=limit, sort=sort,
+            year_from=year_from, year_to=year_to,
+            journal=journal, author=author,
+            full_abstract=full_abstract,
+        ))
+
     if source in ("auto", "s2"):
-        s2_results = search_s2(query, limit=limit, year_from=year_from, year_to=year_to, **kwargs)
-        results.extend(s2_results)
+        # S2 does not support journal/author filtering or sort; skip when those are set
+        if not journal and not author and sort == "relevance_score":
+            s2_results = search_s2(query, limit=limit, year_from=year_from, year_to=year_to, **kwargs)
+            results.extend(s2_results)
 
     if source == "auto":
         results = _merge_dedup(results)
@@ -115,7 +126,15 @@ def unified_search(
                     r["oa_status"] = oa_info["oa_status"]
                     r["oa_available"] = oa_info["oa_available"]
 
-    results.sort(key=lambda x: x.get("cited_by_count", 0), reverse=True)
+    # Apply sort
+    if sort == "cited_by_count":
+        results.sort(key=lambda x: x.get("cited_by_count", 0), reverse=True)
+    elif sort == "publication_date":
+        results.sort(key=lambda x: x.get("year", 0) or 0, reverse=True)
+    else:
+        # relevance_score: OpenAlex already returns in relevance order
+        pass
+
     if limit is not None:
         return results[:limit]
     return results
@@ -125,8 +144,12 @@ def cmd_search(args):
         args.query,
         limit=args.limit,
         source=args.source,
+        sort=args.sort,
         year_from=args.year_from,
         year_to=args.year_to,
+        journal=args.journal,
+        author=args.author,
+        full_abstract=args.full_abstract,
         enrich_oa=not args.no_oa_check
     )
     
@@ -246,8 +269,12 @@ def main():
     parser_search.add_argument("query", help="搜索关键词")
     parser_search.add_argument("--source", choices=["auto", "openalex", "s2"], default="auto", help="数据源")
     parser_search.add_argument("--limit", type=int, default=10, help="最多返回数量 (留空则无限制, 0表示无限制)")
-    parser_search.add_argument("--year-from", type=int, default=None)
-    parser_search.add_argument("--year-to", type=int, default=None)
+    parser_search.add_argument("--sort", choices=["relevance_score", "cited_by_count", "publication_date"], default="relevance_score", help="排序方式")
+    parser_search.add_argument("--year-from", type=int, default=None, help="发表年份下限")
+    parser_search.add_argument("--year-to", type=int, default=None, help="发表年份上限")
+    parser_search.add_argument("--journal", type=str, default=None, help="按期刊名关键词过滤")
+    parser_search.add_argument("--author", type=str, default=None, help="按作者姓名关键词过滤")
+    parser_search.add_argument("--full-abstract", action="store_true", help="输出完整摘要（默认截断至500字符）")
     parser_search.add_argument("--format", choices=["json", "compact", "table", "citation"], default="json")
     parser_search.add_argument("--citation-style", choices=["nsfc", "apa"], default="nsfc")
     parser_search.add_argument("--doi-only", action="store_true")
@@ -258,8 +285,11 @@ def main():
     parser_grab.add_argument("query", help="搜索关键词")
     parser_grab.add_argument("--source", choices=["auto", "openalex", "s2"], default="auto", help="数据源")
     parser_grab.add_argument("--limit", type=int, default=None, help="最多返回数量 (默认无限制)")
-    parser_grab.add_argument("--year-from", type=int, default=None)
-    parser_grab.add_argument("--year-to", type=int, default=None)
+    parser_grab.add_argument("--sort", choices=["relevance_score", "cited_by_count", "publication_date"], default="relevance_score", help="排序方式")
+    parser_grab.add_argument("--year-from", type=int, default=None, help="发表年份下限")
+    parser_grab.add_argument("--year-to", type=int, default=None, help="发表年份上限")
+    parser_grab.add_argument("--journal", type=str, default=None, help="按期刊名关键词过滤")
+    parser_grab.add_argument("--author", type=str, default=None, help="按作者姓名关键词过滤")
     parser_grab.add_argument("--out", default="pdfs", help="输出目录")
     parser_grab.add_argument("--dry-run", action="store_true", help="仅预览下载路径，不实际下载")
     parser_grab.add_argument("--no-oa-check", action="store_true", help="不检查OA状态直接尝试全部下载")
@@ -298,8 +328,11 @@ def main():
             args.query,
             limit=args.limit,
             source=args.source,
+            sort=args.sort,
             year_from=args.year_from,
             year_to=args.year_to,
+            journal=args.journal,
+            author=args.author,
             enrich_oa=not args.no_oa_check
         ))
     elif args.command in ("grab-refs", "grab-citations"):
