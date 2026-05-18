@@ -2,10 +2,16 @@
 # /// script
 # requires-python = ">=3.8"
 # ///
-"""Aggregated Academic Paper Search across OpenAlex, Semantic Scholar, and Unpaywall.
+"""Aggregated Academic Paper Search across 7 sources.
 
-Supports discovery (search), batch OA download (grab), and citation tracing
-(refs/citations). Download modes delegate to paper-fetch when available.
+Pure search/discovery tool. For PDF download, use the paper-fetch skill.
+
+Supports:
+- search: keyword search across OpenAlex, Semantic Scholar, PubMed, arXiv,
+  bioRxiv, medRxiv, Google Scholar (optional)
+- refs: list a paper's references
+- citations: list papers that cite a given paper
+- export formats: json, table, compact, citation, csv, bibtex, ris
 """
 
 from __future__ import annotations
@@ -33,22 +39,6 @@ try:
 except ImportError as e:
     print(f"Error importing modules: {e}", file=sys.stderr)
     sys.exit(1)
-
-# Try to import fetch from paper-fetch if available; otherwise grab mode falls back to HTTP
-try:
-    # Try local fetch.py first (if copied into this skill)
-    from fetch import fetch
-except ImportError:
-    try:
-        # Fall back to paper-fetch skill
-        _paper_fetch_scripts = Path(__file__).parent.parent.parent / "paper-fetch" / "scripts"
-        if _paper_fetch_scripts.exists():
-            sys.path.insert(0, str(_paper_fetch_scripts))
-            from fetch import fetch
-        else:
-            fetch = None
-    except ImportError:
-        fetch = None
 
 def _get_json(url: str, timeout: int = 10):
     import urllib.request
@@ -266,64 +256,9 @@ def cmd_refs(args):
     else:
         print(json.dumps(results, ensure_ascii=False, indent=2))
 
-def cmd_grab(args, search_func_wrapper):
-    if fetch is None:
-        print("\n⚠️  paper-fetch not found. Cannot download PDFs.", file=sys.stderr)
-        print("    Install paper-fetch to enable grab modes:", file=sys.stderr)
-        print("    npx skills add Agents365-ai/paper-fetch", file=sys.stderr)
-        print("\n    Falling back to pure search mode:", file=sys.stderr)
-        cmd_search(args, search_func_wrapper)
-        return
-
-    results = search_func_wrapper()
-    print(format_table(results), file=sys.stderr)
-
-    dois = [r["doi"] for r in results if r.get("doi")]
-    # If no-oa-check was NOT given, filter out those known to be closed access
-    if not args.no_oa_check:
-        dois = [r["doi"] for r in results if r.get("doi") and r.get("oa_available") is not False]
-        
-    if not dois:
-        print("未找到带 DOI 或已知可访问的论文，无法下载。", file=sys.stderr)
-        sys.exit(1)
-        
-    print(f"\n📥 开始下载 {len(dois)} 篇论文...\n", file=sys.stderr)
-    download_results = []
-    
-    out_dir_path = Path(args.out)
-    out_dir_path.mkdir(parents=True, exist_ok=True)
-    
-    for i, doi in enumerate(dois, 1):
-        print(f"  [{i}/{len(dois)}] {doi}", file=sys.stderr)
-        
-        # Add a 1.2 second delay between requests to strictly respect Semantic Scholar's 
-        # 1 request per second API limit during batch fetching
-        if i > 1:
-            time.sleep(1.2)
-            
-        try:
-            result = fetch(
-                doi,
-                out_dir=out_dir_path,
-                dry_run=args.dry_run,
-                overwrite=False,
-                timeout=30,
-            )
-            download_results.append(result)
-            if result.get("success"):
-                print(f"    ✅ {result.get('file', '?')}", file=sys.stderr)
-            else:
-                err = result.get("error", {})
-                print(f"    ❌ {err.get('message', 'failed')}", file=sys.stderr)
-        except Exception as e:
-             print(f"    ❌ System error: {str(e)}", file=sys.stderr)
-             
-    succeeded = sum(1 for r in download_results if r.get("success"))
-    print(f"\n📊 完成: {succeeded}/{len(dois)} 下载成功", file=sys.stderr)
-
 def main():
     parser = argparse.ArgumentParser(
-        description="Unified Academic Search and Download",
+        description="Aggregated Academic Paper Search (7 sources)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -344,20 +279,6 @@ def main():
     parser_search.add_argument("--doi-only", action="store_true")
     parser_search.add_argument("--no-oa-check", action="store_true", help="跳过 Unpaywall 查询以加快速度")
 
-    # grab cmd (search + download)
-    parser_grab = subparsers.add_parser("grab", help="搜索 + 自动下载 OA PDF")
-    parser_grab.add_argument("query", help="搜索关键词")
-    parser_grab.add_argument("--source", choices=["auto", "openalex", "s2", "pubmed", "arxiv", "biorxiv", "medrxiv", "google_scholar"], default="auto", help="数据源")
-    parser_grab.add_argument("--limit", type=int, default=None, help="最多返回数量 (默认无限制)")
-    parser_grab.add_argument("--sort", choices=["relevance_score", "cited_by_count", "publication_date"], default="relevance_score", help="排序方式")
-    parser_grab.add_argument("--year-from", type=int, default=None, help="发表年份下限")
-    parser_grab.add_argument("--year-to", type=int, default=None, help="发表年份上限")
-    parser_grab.add_argument("--journal", type=str, default=None, help="按期刊名关键词过滤")
-    parser_grab.add_argument("--author", type=str, default=None, help="按作者姓名关键词过滤")
-    parser_grab.add_argument("--out", default="pdfs", help="输出目录")
-    parser_grab.add_argument("--dry-run", action="store_true", help="仅预览下载路径，不实际下载")
-    parser_grab.add_argument("--no-oa-check", action="store_true", help="不检查OA状态直接尝试全部下载")
-
     # refs / citations cmd
     for cmd_name, help_text in [("refs", "查看参考文献列表"), ("citations", "查看引用者")]:
         p = subparsers.add_parser(cmd_name, help=help_text)
@@ -368,17 +289,8 @@ def main():
         p.add_argument("--doi-only", action="store_true")
         p.add_argument("--no-oa-check", action="store_true", help="跳过 Unpaywall 查询")
 
-    # grab-refs / grab-citations cmd
-    for cmd_name, help_text in [("grab-refs", "下载参考文献 PDF"), ("grab-citations", "下载引用者 PDF")]:
-        p = subparsers.add_parser(cmd_name, help=help_text)
-        p.add_argument("paper_id", help="如 DOI:xxx")
-        p.add_argument("--limit", type=int, default=None, help="限制数量")
-        p.add_argument("--out", default="pdfs", help="输出目录")
-        p.add_argument("--dry-run", action="store_true")
-        p.add_argument("--no-oa-check", action="store_true", help="不检查OA状态")
-        
     args = parser.parse_args()
-    
+
     # Process limit argument if missing or 0 to None
     if getattr(args, "limit", None) == 0:
         args.limit = None
@@ -387,36 +299,6 @@ def main():
         cmd_search(args)
     elif args.command in ("refs", "citations"):
         cmd_refs(args)
-    elif args.command == "grab":
-        cmd_grab(args, lambda: unified_search(
-            args.query,
-            limit=args.limit,
-            source=args.source,
-            sort=args.sort,
-            year_from=args.year_from,
-            year_to=args.year_to,
-            journal=args.journal,
-            author=args.author,
-            enrich_oa=not args.no_oa_check
-        ))
-    elif args.command in ("grab-refs", "grab-citations"):
-        is_citations = (args.command == "grab-citations")
-        func = get_citations if is_citations else get_references
-        def grab_refs_wrapper():
-            results = func(args.paper_id, limit=args.limit)
-            if not args.no_oa_check:
-                email = os.environ.get("UNPAYWALL_EMAIL", "")
-                if email:
-                    print("Checking OA status from Unpaywall...", file=sys.stderr)
-                    for r in results:
-                        if r.get("doi"):
-                            time.sleep(0.1)
-                            oa_info = check_unpaywall(r["doi"], email)
-                            r["oa_status"] = oa_info["oa_status"]
-                            r["oa_available"] = oa_info["oa_available"]
-            results.sort(key=lambda x: x.get("cited_by_count", 0), reverse=True)
-            return results
-        cmd_grab(args, grab_refs_wrapper)
 
 if __name__ == "__main__":
     main()

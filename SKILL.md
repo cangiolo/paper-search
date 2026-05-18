@@ -1,13 +1,13 @@
 ---
 name: paper-search
-description: Use when the user wants to search for academic papers, discover literature, or find research articles by keywords, topics, authors, or DOIs. Aggregates results from 7 sources — OpenAlex, Semantic Scholar, PubMed, arXiv, bioRxiv, medRxiv, and Google Scholar (optional) — with OA status, TLDR summaries, citation counts, and advanced filtering (sort by citations/date, journal filter, author filter, full abstract). Exports to CSV, BibTeX, RIS for Zotero/EndNote/Mendeley import. Also supports citation tracing (find references or citing papers) and batch OA download. For downloading PDFs after search, use paper-fetch.
+description: Use when the user wants to search for academic papers, discover literature, or find research articles by keywords, topics, authors, or DOIs. Pure search/discovery tool — does NOT download PDFs (pair with paper-fetch for that). Aggregates results from 7 sources — OpenAlex, Semantic Scholar, PubMed, arXiv, bioRxiv, medRxiv, and Google Scholar (optional) — with OA status, TLDR summaries, citation counts, and advanced filtering (sort by citations/date, journal filter, author filter, full abstract). Exports to CSV, BibTeX, RIS for Zotero/EndNote/Mendeley import. Also supports citation tracing (list a paper's references or citing papers).
 homepage: https://github.com/zyzhou-saffron/paper-search
 metadata: {"openclaw":{"requires":{"bins":["python3"]},"emoji":"🔍"},"pimo":{"category":"research","tags":["paper","search","literature","academic","discovery","openalex","pubmed","arxiv","biorxiv","medrxiv","semanticscholar","google-scholar","citation-tracing"]}}
 ---
 
 # paper-search
 
-Aggregated academic paper search across **7 sources**:
+Aggregated academic paper search across **7 sources**. Pure discovery — no PDF download (use `paper-fetch` for that).
 
 | Source | Coverage | Best For |
 |--------|----------|----------|
@@ -19,36 +19,38 @@ Aggregated academic paper search across **7 sources**:
 | **medRxiv** | 80K+ preprints | Medicine/health preprints |
 | **Google Scholar** | ~400M (unofficial) | Broadest coverage, requires `pip install scholarly` |
 
-**Superset of openalex-search** — includes all its features plus 5 additional sources, OA status, and citation tracing.
+**Functional superset of openalex-search** — every openalex-search flag plus 6 additional sources, OA status, TLDR, citation tracing, and reference-manager exports.
 
 ## Commands
 
 ```bash
 # Search all sources (auto mode)
-python scripts/search_and_fetch.py search "CRISPR gene editing" --limit 10 --format table
+python scripts/search.py search "CRISPR gene editing" --limit 10 --format table
 
 # Search specific source
-python scripts/search_and_fetch.py search "COVID-19" --source pubmed --limit 5
-python scripts/search_and_fetch.py search "transformer" --source arxiv --limit 5
-python scripts/search_and_fetch.py search "genome" --source biorxiv --limit 5
-python scripts/search_and_fetch.py search "vaccine" --source medrxiv --limit 5
-python scripts/search_and_fetch.py search "AlphaFold" --source google_scholar --limit 5
+python scripts/search.py search "COVID-19" --source pubmed --limit 5
+python scripts/search.py search "transformer" --source arxiv --limit 5
+python scripts/search.py search "genome" --source biorxiv --limit 5
+python scripts/search.py search "vaccine" --source medrxiv --limit 5
+python scripts/search.py search "AlphaFold" --source google_scholar --limit 5
 
 # Advanced filtering
-python scripts/search_and_fetch.py search "deep learning" \
+python scripts/search.py search "deep learning" \
     --sort cited_by_count --year-from 2020 --journal "Nature" \
     --author "Bengio" --full-abstract --format table
 
-# Search + auto-download OA PDFs
-python scripts/search_and_fetch.py grab "foundation models biology" --limit 20 --out ~/papers
+# Citation tracing
+python scripts/search.py refs "DOI:10.1038/s41586-021-03819-2" --limit 50
+python scripts/search.py citations "DOI:10.1038/s41586-021-03819-2" --limit 50
 
 # Export for reference managers (Zotero / EndNote / Mendeley)
-python scripts/search_and_fetch.py search "AlphaFold" --limit 30 --format csv    > papers.csv
-python scripts/search_and_fetch.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
-python scripts/search_and_fetch.py search "AlphaFold" --limit 30 --format ris    > papers.ris
+python scripts/search.py search "AlphaFold" --limit 30 --format csv    > papers.csv
+python scripts/search.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
+python scripts/search.py search "AlphaFold" --limit 30 --format ris    > papers.ris
 
-# Trace references of a landmark paper
-python scripts/search_and_fetch.py grab-refs "DOI:10.1038/s41586-021-03819-2" --out ./alphafold_refs
+# Chain into paper-fetch for PDF download (DOI pipe)
+python scripts/search.py search "AlphaFold" --limit 10 --doi-only \
+    | python ~/.claude/skills/paper-fetch/scripts/fetch.py --batch -
 ```
 
 ## Output Formats
@@ -78,7 +80,7 @@ pip install scholarly   # enables Google Scholar source
 
 ## Relationship to paper-fetch
 
-- **paper-search** = discovery + filtering + tracing (7 sources)
-- **paper-fetch** = retrieval (download PDF, 7 sources including Sci-Hub fallback)
+- **paper-search** = pure discovery + filtering + citation tracing + export
+- **paper-fetch** = PDF retrieval (7 download sources including Sci-Hub fallback)
 
-paper-search's `grab` modes delegate downloading to paper-fetch when available.
+Single-responsibility separation: paper-search produces DOI lists, paper-fetch consumes them. Pipe `--doi-only` output into `fetch.py --batch -`.
