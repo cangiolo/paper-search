@@ -1,6 +1,6 @@
 ---
 name: paper-search
-description: Use when the user wants to search for academic papers, discover literature, or find research articles by keywords, topics, authors, or DOIs. Aggregates results from 7 sources — OpenAlex, Semantic Scholar, PubMed, arXiv, bioRxiv, medRxiv, and Google Scholar (optional) — with OA status, TLDR summaries, citation counts, and advanced filtering (sort by citations/date, journal filter, author filter, full abstract). Also supports citation tracing (find references or citing papers) and batch OA download. For downloading PDFs after search, use paper-fetch.
+description: Use when the user wants to search for academic papers, discover literature, or find research articles by keywords, topics, authors, or DOIs. Aggregates results from 7 sources — OpenAlex, Semantic Scholar, PubMed, arXiv, bioRxiv, medRxiv, and Google Scholar (optional) — with OA status, TLDR summaries, citation counts, and advanced filtering (sort by citations/date, journal filter, author filter, full abstract). Exports to CSV, BibTeX, RIS for Zotero/EndNote/Mendeley import. Also supports citation tracing (find references or citing papers) and batch OA download. For downloading PDFs after search, use paper-fetch.
 homepage: https://github.com/zyzhou-saffron/paper-search
 metadata: {"openclaw":{"requires":{"bins":["python3"]},"emoji":"🔍"},"pimo":{"category":"research","tags":["paper","search","literature","academic","discovery","openalex","pubmed","arxiv","biorxiv","medrxiv","semanticscholar","google-scholar","citation-tracing"]}}
 ---
@@ -42,9 +42,26 @@ python scripts/search_and_fetch.py search "deep learning" \
 # Search + auto-download OA PDFs
 python scripts/search_and_fetch.py grab "foundation models biology" --limit 20 --out ~/papers
 
+# Export for reference managers (Zotero / EndNote / Mendeley)
+python scripts/search_and_fetch.py search "AlphaFold" --limit 30 --format csv    > papers.csv
+python scripts/search_and_fetch.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
+python scripts/search_and_fetch.py search "AlphaFold" --limit 30 --format ris    > papers.ris
+
 # Trace references of a landmark paper
 python scripts/search_and_fetch.py grab-refs "DOI:10.1038/s41586-021-03819-2" --out ./alphafold_refs
 ```
+
+## Output Formats
+
+| Format | Use Case | Tool Compatibility |
+|--------|----------|--------------------|
+| `json` | Programmatic processing | API consumers |
+| `table` | Human-readable terminal output | Interactive browsing |
+| `compact` | One-line-per-paper | Scripts, grep |
+| `citation` | NSFC / APA bibliography | Direct paste into manuscripts |
+| `csv` | Spreadsheet | Excel, Zotero (CSV import), Google Sheets |
+| `bibtex` | LaTeX manuscripts | LaTeX, Zotero, JabRef, Mendeley |
+| `ris` | Universal reference manager | Zotero, EndNote, Mendeley, RefWorks |
 
 ## Environment Variables
 

@@ -18,7 +18,7 @@ except ImportError:
 OPENALEX_API = "https://api.openalex.org/works"
 MAILTO = os.environ.get("UNPAYWALL_EMAIL", "openclaw-agent@example.com")
 
-__all__ = ["search", "format_table", "format_compact", "format_citation"]
+__all__ = ["search", "format_table", "format_compact", "format_citation", "format_csv", "format_bibtex", "format_ris"]
 
 def _build_filter(year_from, year_to, journal, author):
     filters = []
@@ -222,3 +222,179 @@ def format_citation(results: list[dict], style: str = "nsfc") -> str:
             citation = " ".join(p for p in parts_list if p)
         citations.append(citation)
     return "\n\n".join(citations)
+
+
+# =============================================================================
+# Reference manager export formats (CSV, BibTeX, RIS)
+# =============================================================================
+
+import csv
+import io
+import re
+
+def _slugify(text: str, max_len: int = 30) -> str:
+    """Strip non-alphanumerics, keep first word for BibTeX citation key."""
+    text = re.sub(r"[^A-Za-z0-9]+", " ", text).strip()
+    first = text.split()[0] if text else "ref"
+    return first[:max_len]
+
+def _bibtex_escape(text: str) -> str:
+    """Escape BibTeX special characters."""
+    if not text:
+        return ""
+    # Escape braces and special chars
+    text = text.replace("\\", "\\\\")
+    text = text.replace("{", "\\{").replace("}", "\\}")
+    text = text.replace("&", "\\&").replace("%", "\\%")
+    text = text.replace("$", "\\$").replace("#", "\\#")
+    text = text.replace("_", "\\_")
+    return text
+
+def _bibtex_authors(authors: list[str]) -> str:
+    """Format authors as 'Last1, First1 and Last2, First2' for BibTeX."""
+    formatted = []
+    for name in authors:
+        name = name.strip()
+        if not name:
+            continue
+        parts = name.split()
+        if len(parts) >= 2:
+            last = parts[-1]
+            first = " ".join(parts[:-1])
+            formatted.append(f"{last}, {first}")
+        else:
+            formatted.append(name)
+    return " and ".join(formatted)
+
+def _entry_type(r: dict) -> str:
+    """Decide BibTeX entry type from source/journal info."""
+    src = (r.get("source_db") or "").lower()
+    journal = (r.get("journal") or "").lower()
+    if "arxiv" in src or "arxiv" in journal:
+        return "misc"  # arXiv preprints are usually @misc
+    if src in ("biorxiv", "medrxiv"):
+        return "misc"
+    if r.get("journal"):
+        return "article"
+    return "misc"
+
+def format_csv(results: list[dict]) -> str:
+    """Export as CSV (importable to Zotero, EndNote, Excel)."""
+    output = io.StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+    writer.writerow([
+        "Title", "Authors", "Year", "Journal", "DOI", "URL",
+        "Abstract", "CitedByCount", "Source", "OAStatus", "TLDR",
+    ])
+    for r in results:
+        authors = r.get("authors") or []
+        writer.writerow([
+            r.get("title", ""),
+            "; ".join(authors),
+            r.get("year", ""),
+            r.get("journal", ""),
+            r.get("doi", ""),
+            r.get("url", ""),
+            r.get("abstract", ""),
+            r.get("cited_by_count", ""),
+            r.get("source_db", ""),
+            r.get("oa_status", "") or "",
+            r.get("tldr", ""),
+        ])
+    return output.getvalue()
+
+def format_bibtex(results: list[dict]) -> str:
+    """Export as BibTeX (.bib). Standard format for LaTeX and many ref managers."""
+    if not results:
+        return ""
+    used_keys = set()
+    entries = []
+    for r in results:
+        authors = r.get("authors") or []
+        year = r.get("year") or "n.d."
+        title = r.get("title") or ""
+
+        # Generate unique citation key: LastNameYearFirstTitleWord
+        first_author_last = ""
+        if authors:
+            parts = authors[0].split()
+            first_author_last = parts[-1] if parts else authors[0]
+        first_author_last = _slugify(first_author_last)
+        title_first = _slugify(title)
+        key = f"{first_author_last}{year}{title_first}"
+        # Ensure uniqueness
+        base_key = key
+        suffix = 1
+        while key in used_keys:
+            suffix += 1
+            key = f"{base_key}{chr(ord('a') + suffix - 2)}"
+        used_keys.add(key)
+
+        entry_type = _entry_type(r)
+        fields = []
+        fields.append(f"  title = {{{_bibtex_escape(title)}}}")
+        if authors:
+            fields.append(f"  author = {{{_bibtex_escape(_bibtex_authors(authors))}}}")
+        fields.append(f"  year = {{{year}}}")
+        if r.get("journal"):
+            fields.append(f"  journal = {{{_bibtex_escape(r['journal'])}}}")
+        if r.get("doi"):
+            fields.append(f"  doi = {{{r['doi']}}}")
+        if r.get("url"):
+            fields.append(f"  url = {{{r['url']}}}")
+        if r.get("abstract"):
+            fields.append(f"  abstract = {{{_bibtex_escape(r['abstract'])}}}")
+        if r.get("cited_by_count"):
+            fields.append(f"  note = {{Citations: {r['cited_by_count']}}}")
+
+        entry = f"@{entry_type}{{{key},\n" + ",\n".join(fields) + "\n}"
+        entries.append(entry)
+    return "\n\n".join(entries)
+
+def format_ris(results: list[dict]) -> str:
+    """Export as RIS (.ris). Universal reference manager format (Zotero, EndNote, Mendeley)."""
+    if not results:
+        return ""
+    entries = []
+    for r in results:
+        src = (r.get("source_db") or "").lower()
+        # Decide RIS type tag
+        if "arxiv" in src or src in ("biorxiv", "medrxiv"):
+            ty = "UNPB"  # Unpublished work / preprint
+        elif r.get("journal"):
+            ty = "JOUR"
+        else:
+            ty = "GEN"
+
+        lines = [f"TY  - {ty}"]
+        if r.get("title"):
+            lines.append(f"TI  - {r['title']}")
+        for author in (r.get("authors") or []):
+            # Normalize to "Last, First" for RIS
+            parts = author.split()
+            if len(parts) >= 2:
+                last = parts[-1]
+                first = " ".join(parts[:-1])
+                lines.append(f"AU  - {last}, {first}")
+            else:
+                lines.append(f"AU  - {author}")
+        if r.get("year"):
+            lines.append(f"PY  - {r['year']}")
+        if r.get("journal"):
+            lines.append(f"JO  - {r['journal']}")
+            lines.append(f"T2  - {r['journal']}")
+        if r.get("doi"):
+            lines.append(f"DO  - {r['doi']}")
+        if r.get("url"):
+            lines.append(f"UR  - {r['url']}")
+        if r.get("abstract"):
+            # RIS abstract should not have newlines that break the format
+            abstract = r["abstract"].replace("\n", " ").replace("\r", " ")
+            lines.append(f"AB  - {abstract}")
+        if r.get("cited_by_count"):
+            lines.append(f"N1  - Citations: {r['cited_by_count']}")
+        if r.get("source_db"):
+            lines.append(f"DB  - {r['source_db']}")
+        lines.append("ER  - ")
+        entries.append("\n".join(lines))
+    return "\n\n".join(entries)

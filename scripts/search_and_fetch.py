@@ -20,7 +20,11 @@ from pathlib import Path
 # Fix path to import modules
 sys.path.insert(0, str(Path(__file__).parent))
 try:
-    from search_openalex import search as search_openalex, format_table, format_compact, format_citation
+    from search_openalex import (
+        search as search_openalex,
+        format_table, format_compact, format_citation,
+        format_csv, format_bibtex, format_ris,
+    )
     from search_s2 import search_s2, get_paper, get_citations, get_references
     from search_pubmed import search as search_pubmed
     from search_arxiv import search as search_arxiv
@@ -214,6 +218,12 @@ def cmd_search(args):
         print(format_compact(results))
     elif fmt == "citation":
         print(format_citation(results, style=args.citation_style))
+    elif fmt == "csv":
+        sys.stdout.write(format_csv(results))
+    elif fmt == "bibtex":
+        print(format_bibtex(results))
+    elif fmt == "ris":
+        print(format_ris(results))
     else:
         print(json.dumps(results, ensure_ascii=False, indent=2))
 
@@ -247,6 +257,12 @@ def cmd_refs(args):
         print(format_compact(results))
     elif args.format == "citation":
         print(format_citation(results, style=args.citation_style))
+    elif args.format == "csv":
+        sys.stdout.write(format_csv(results))
+    elif args.format == "bibtex":
+        print(format_bibtex(results))
+    elif args.format == "ris":
+        print(format_ris(results))
     else:
         print(json.dumps(results, ensure_ascii=False, indent=2))
 
@@ -323,7 +339,7 @@ def main():
     parser_search.add_argument("--journal", type=str, default=None, help="按期刊名关键词过滤")
     parser_search.add_argument("--author", type=str, default=None, help="按作者姓名关键词过滤")
     parser_search.add_argument("--full-abstract", action="store_true", help="输出完整摘要（默认截断至500字符）")
-    parser_search.add_argument("--format", choices=["json", "compact", "table", "citation"], default="json")
+    parser_search.add_argument("--format", choices=["json", "compact", "table", "citation", "csv", "bibtex", "ris"], default="json")
     parser_search.add_argument("--citation-style", choices=["nsfc", "apa"], default="nsfc")
     parser_search.add_argument("--doi-only", action="store_true")
     parser_search.add_argument("--no-oa-check", action="store_true", help="跳过 Unpaywall 查询以加快速度")
@@ -347,7 +363,7 @@ def main():
         p = subparsers.add_parser(cmd_name, help=help_text)
         p.add_argument("paper_id", help="如 DOI:xxx")
         p.add_argument("--limit", type=int, default=20, help="限制数量")
-        p.add_argument("--format", choices=["json", "compact", "table", "citation"], default="json")
+        p.add_argument("--format", choices=["json", "compact", "table", "citation", "csv", "bibtex", "ris"], default="json")
         p.add_argument("--citation-style", choices=["nsfc", "apa"], default="nsfc")
         p.add_argument("--doi-only", action="store_true")
         p.add_argument("--no-oa-check", action="store_true", help="跳过 Unpaywall 查询")
