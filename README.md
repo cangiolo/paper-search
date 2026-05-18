@@ -1,47 +1,165 @@
-# paper-fetch 扩展篇：三源融合搜索与下载
+# paper-search
 
-本项目除了提供原版的单 DOI 下载 (`fetch.py`) 外，还内置了**聚合学术搜索引擎** (`search_and_fetch.py`)。它能在一行命令内实现 **OpenAlex + Semantic Scholar + Unpaywall** 的多源检索并批量下载。
+> **Pure academic discovery CLI** — aggregates 7 sources, exports to reference managers, traces citations. No PDF download (pair with [paper-fetch](https://github.com/Agents365-ai/paper-fetch) for that).
 
-## 工作原理
+[English](#english) | [中文](#中文)
 
-1. 搜索 `query` 时，脚本分别向 OpenAlex 和 Semantic Scholar 请求 API。
-2. 将结果以 DOI 为主键进行去重和融合，优先使用 S2 提供的高级 AI 全文摘要（TLDR）。
-3. 解析出 DOI 后，通过 Unpaywall API 自动检测这篇论文是否开源（以 `🟢 OA Available` / `🔴 Closed Access` 醒目标注）。
-4. 通过 `grab` 模式，直接对接原项目的 `fetch.py` 极速下载引擎，无缝拉取免费优质 PDF。
+---
 
-一切发生得很优雅。同时我们内置了 **1.2秒 API 限速器** 和 **100ms 探测间隔**，让你哪怕批量下载 100 篇论文，也绝不会收到任何一家出版社和 API 服务商的拉黑邮件！
+## English
 
-## 环境配置建议（强烈推荐）
+### What it does
 
-在你的 `~/.zshrc` 或 `~/.bashrc` 中写入：
+`paper-search` is a single-responsibility CLI tool for finding academic papers. It queries **7 sources in parallel**, deduplicates by DOI, enriches results with OA status and TLDR summaries, and exports to formats your reference manager actually understands (CSV, BibTeX, RIS).
+
+It does **not** download PDFs — that is `paper-fetch`'s job. Pipe `--doi-only` output into `paper-fetch --batch -` to chain the two.
+
+### Sources (7 total)
+
+| Source | Coverage | Strength |
+|--------|----------|----------|
+| OpenAlex | 250M+ works | General coverage, reliable citation counts |
+| Semantic Scholar | 200M+ papers | AI-generated TLDR summaries |
+| PubMed | 35M+ biomedical | Biology, medicine, health sciences |
+| arXiv | 2M+ preprints | Physics, math, CS, AI/ML |
+| bioRxiv | 330K+ preprints | Biology preprints |
+| medRxiv | 80K+ preprints | Medicine/health preprints |
+| Google Scholar | ~400M (unofficial) | Broadest coverage, requires `pip install scholarly` |
+
+### Quick start
 
 ```bash
-export UNPAYWALL_EMAIL="你的真实邮箱@example.com"
-# 可选，获取方式：前往 semanticscholar.org 申请
-export SEMANTIC_SCHOLAR_API_KEY="你的S2 API Key" 
+# Search across all sources
+python scripts/search.py search "CRISPR gene editing" --limit 10 --format table
+
+# Specific source
+python scripts/search.py search "COVID-19" --source pubmed --limit 5
+python scripts/search.py search "transformer" --source arxiv --limit 5
+
+# Advanced filtering (sort/year/journal/author)
+python scripts/search.py search "deep learning" \
+    --sort cited_by_count --year-from 2020 --journal "Nature" \
+    --author "Bengio" --full-abstract --format table
+
+# Citation tracing
+python scripts/search.py refs "DOI:10.1038/s41586-021-03819-2" --limit 50
+python scripts/search.py citations "DOI:10.1038/s41586-021-03819-2" --limit 50
+
+# Export for reference managers
+python scripts/search.py search "AlphaFold" --limit 30 --format csv    > papers.csv
+python scripts/search.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
+python scripts/search.py search "AlphaFold" --limit 30 --format ris    > papers.ris
+
+# Chain into paper-fetch for PDF download
+python scripts/search.py search "AlphaFold" --limit 10 --doi-only \
+    | python ~/.claude/skills/paper-fetch/scripts/fetch.py --batch -
 ```
 
-## 命令与示例
+### Output formats
 
-### 1. 探索模式 (search)
-*用于：查看前沿领域的文献综述，把命令行当成带摘要和引用的学术搜索引擎。*
+| `--format` | Use case |
+|-----------|---------|
+| `json` | Programmatic processing |
+| `table` | Human-readable terminal cards |
+| `compact` | One-line-per-paper for scripts/grep |
+| `citation` | NSFC / APA bibliography string |
+| `csv` | Excel, Zotero CSV import, Google Sheets |
+| `bibtex` | LaTeX, JabRef, Mendeley |
+| `ris` | Zotero, EndNote, Mendeley, RefWorks |
+
+### Environment
+
 ```bash
-python scripts/search_and_fetch.py search "crispr gene editing" --limit 10 --format table
+export UNPAYWALL_EMAIL="your-email@example.com"   # required for OA status
+export SEMANTIC_SCHOLAR_API_KEY="..."              # optional, raises rate limit
 ```
-> 会输出排版精美的命令行文献卡片包含作者、发表年份、引用量、源头和 TLDR（一行核心快评）。
 
-### 2. 扫荡模式 (grab)
-*用于：我不关心这百来篇文献的各自状态，统统给我把开源的 PDF 下下来存进当前 `/papers` 目录！*
+### Optional dependency
+
 ```bash
-python scripts/search_and_fetch.py grab "foundation models biology" --limit 50 --out ./papers
+pip install scholarly   # enables --source google_scholar
 ```
 
-### 3. 引用溯源追踪 (grab-refs / grab-citations)
-*用于：我读了一篇神作 (如 AlphaFold)，我想把它所有引用的前置论文、以及未来引用了它拓展工作的所有论文全都下下来。*
+### Relationship to paper-fetch
+
+| | paper-search | paper-fetch |
+|---|--------------|-------------|
+| Role | Discovery + filtering + tracing + export | PDF retrieval |
+| Output | DOI lists, metadata, references | PDF files |
+| Sources | 7 (search) | 7 (download) |
+| Rate-limit aware | ✅ | ✅ |
+
+Pipe `paper-search --doi-only` → `paper-fetch --batch -` for a complete pipeline.
+
+---
+
+## 中文
+
+### 它做什么
+
+`paper-search` 是一个**单一职责的学术文献发现 CLI**：并行查询 7 个学术库，按 DOI 去重融合，标注 OA 开放状态和 TLDR 摘要，导出为文献管理软件能直接吃的格式（CSV/BibTeX/RIS）。
+
+**不下载 PDF**——那是 [paper-fetch](https://github.com/Agents365-ai/paper-fetch) 的职责。把 `--doi-only` 输出管道到 `paper-fetch --batch -` 就能串成完整流水线。
+
+### 数据源（共 7 个）
+
+| 数据源 | 规模 | 优势领域 |
+|--------|------|---------|
+| OpenAlex | 2.5 亿+ | 综合覆盖，引用数权威 |
+| Semantic Scholar | 2 亿+ | AI 生成的 TLDR 一句话摘要 |
+| PubMed | 3500 万+ | 生物、医学、健康 |
+| arXiv | 200 万+ | 物理、数学、CS、AI/ML 预印本 |
+| bioRxiv | 33 万+ | 生物学预印本 |
+| medRxiv | 8 万+ | 医学预印本 |
+| Google Scholar | ~4 亿（非官方） | 覆盖最广，需 `pip install scholarly` |
+
+### 快速开始
+
 ```bash
-# 把一篇文章背后的前沿地基全扒下来
-python scripts/search_and_fetch.py grab-refs "DOI:10.1038/s41586-021-03819-2" --out ./alphafold_foundation
+# 跨所有源搜索
+python scripts/search.py search "CRISPR 基因编辑" --limit 10 --format table
 
-# 把站在它肩膀上的工作全扒下来
-python scripts/search_and_fetch.py grab-citations "DOI:10.1038/s41586-021-03819-2" --out ./alphafold_next
+# 指定单源
+python scripts/search.py search "COVID-19" --source pubmed --limit 5
+python scripts/search.py search "transformer" --source arxiv --limit 5
+
+# 高级过滤
+python scripts/search.py search "深度学习" \
+    --sort cited_by_count --year-from 2020 --journal "Nature" \
+    --author "Bengio" --full-abstract --format table
+
+# 引用溯源
+python scripts/search.py refs "DOI:10.1038/s41586-021-03819-2" --limit 50
+python scripts/search.py citations "DOI:10.1038/s41586-021-03819-2" --limit 50
+
+# 导出到文献管理软件
+python scripts/search.py search "AlphaFold" --limit 30 --format csv    > papers.csv
+python scripts/search.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
+python scripts/search.py search "AlphaFold" --limit 30 --format ris    > papers.ris
+
+# 串联 paper-fetch 下载 PDF
+python scripts/search.py search "AlphaFold" --limit 10 --doi-only \
+    | python ~/.claude/skills/paper-fetch/scripts/fetch.py --batch -
 ```
+
+### 环境变量
+
+```bash
+export UNPAYWALL_EMAIL="your-email@example.com"   # 检查 OA 状态时必需
+export SEMANTIC_SCHOLAR_API_KEY="..."              # 可选，提高 S2 速率上限
+```
+
+### 与 paper-fetch 的关系
+
+| 维度 | paper-search | paper-fetch |
+|---|--------------|-------------|
+| 职责 | 发现 + 过滤 + 引用追踪 + 导出 | 下载 PDF |
+| 输出 | DOI 列表、元数据、参考文献 | PDF 文件 |
+| 数据源数 | 7 (搜索) | 7 (下载) |
+| 限速友好 | ✅ | ✅ |
+
+两个工具相互独立但语义化对接：`paper-search --doi-only | paper-fetch --batch -`。
+
+### 许可
+
+MIT License
