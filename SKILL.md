@@ -1,7 +1,7 @@
 ---
 name: paper-search
-description: Use when the user wants to search for academic papers, discover literature, or find research articles by keywords, topics, authors, or DOIs. Pure search/discovery tool — does NOT download PDFs (pair with paper-fetch for that). Aggregates results from 7 sources — OpenAlex, Semantic Scholar, PubMed, arXiv, bioRxiv, medRxiv, and Google Scholar (optional) — with OA status, TLDR summaries, citation counts, and advanced filtering (sort by citations/date, journal filter, author filter, full abstract). Exports to CSV, BibTeX, RIS for Zotero/EndNote/Mendeley import. Also supports citation tracing (list a paper's references or citing papers).
-homepage: https://github.com/zyzhou-saffron/paper-search
+description: Use when the user wants to search for academic papers, discover literature, verify DOIs/citations, or find research articles by keywords, topics, authors, or DOIs (文献检索、查论文、文献调研、DOI 与引用核验、引文追踪). Pure search/discovery tool — does NOT download PDFs (pair with paper-fetch for that). Aggregates results from 7 sources — OpenAlex, Semantic Scholar, PubMed, arXiv, bioRxiv, medRxiv, and Google Scholar (optional) — with OA status, TLDR summaries, citation counts, and advanced filtering (sort by citations/date, journal filter, author filter, full abstract). Exports to CSV, BibTeX, RIS for Zotero/EndNote/Mendeley import. Also supports citation tracing (list a paper's references or citing papers).
+homepage: https://github.com/cangiolo/paper-search
 metadata: {"openclaw":{"requires":{"bins":["python3"]},"emoji":"🔍"},"pimo":{"category":"research","tags":["paper","search","literature","academic","discovery","openalex","pubmed","arxiv","biorxiv","medrxiv","semanticscholar","google-scholar","citation-tracing"]}}
 ---
 
@@ -25,32 +25,32 @@ Aggregated academic paper search across **7 sources**. Pure discovery — no PDF
 
 ```bash
 # Search all sources (auto mode)
-python scripts/search.py search "CRISPR gene editing" --limit 10 --format table
+python3 ~/.agents/skills/paper-search/scripts/search.py search "CRISPR gene editing" --limit 10 --format table
 
 # Search specific source
-python scripts/search.py search "COVID-19" --source pubmed --limit 5
-python scripts/search.py search "transformer" --source arxiv --limit 5
-python scripts/search.py search "genome" --source biorxiv --limit 5
-python scripts/search.py search "vaccine" --source medrxiv --limit 5
-python scripts/search.py search "AlphaFold" --source google_scholar --limit 5
+python3 ~/.agents/skills/paper-search/scripts/search.py search "COVID-19" --source pubmed --limit 5
+python3 ~/.agents/skills/paper-search/scripts/search.py search "transformer" --source arxiv --limit 5
+python3 ~/.agents/skills/paper-search/scripts/search.py search "genome" --source biorxiv --limit 5
+python3 ~/.agents/skills/paper-search/scripts/search.py search "vaccine" --source medrxiv --limit 5
+python3 ~/.agents/skills/paper-search/scripts/search.py search "AlphaFold" --source google_scholar --limit 5
 
 # Advanced filtering
-python scripts/search.py search "deep learning" \
+python3 ~/.agents/skills/paper-search/scripts/search.py search "deep learning" \
     --sort cited_by_count --year-from 2020 --journal "Nature" \
     --author "Bengio" --full-abstract --format table
 
 # Citation tracing
-python scripts/search.py refs "DOI:10.1038/s41586-021-03819-2" --limit 50
-python scripts/search.py citations "DOI:10.1038/s41586-021-03819-2" --limit 50
+python3 ~/.agents/skills/paper-search/scripts/search.py refs "DOI:10.1038/s41586-021-03819-2" --limit 50
+python3 ~/.agents/skills/paper-search/scripts/search.py citations "DOI:10.1038/s41586-021-03819-2" --limit 50
 
 # Export for reference managers (Zotero / EndNote / Mendeley)
-python scripts/search.py search "AlphaFold" --limit 30 --format csv    > papers.csv
-python scripts/search.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
-python scripts/search.py search "AlphaFold" --limit 30 --format ris    > papers.ris
+python3 ~/.agents/skills/paper-search/scripts/search.py search "AlphaFold" --limit 30 --format csv    > papers.csv
+python3 ~/.agents/skills/paper-search/scripts/search.py search "AlphaFold" --limit 30 --format bibtex > papers.bib
+python3 ~/.agents/skills/paper-search/scripts/search.py search "AlphaFold" --limit 30 --format ris    > papers.ris
 
 # Chain into paper-fetch for PDF download (DOI pipe)
-python scripts/search.py search "AlphaFold" --limit 10 --doi-only \
-    | python ~/.claude/skills/paper-fetch/scripts/fetch.py --batch -
+python3 ~/.agents/skills/paper-search/scripts/search.py search "AlphaFold" --limit 10 --doi-only \
+    | python3 ~/.agents/skills/paper-fetch/scripts/fetch.py --batch -
 ```
 
 ## Output Formats

@@ -3,6 +3,8 @@
 需要安装: pip install scholarly
 """
 
+from __future__ import annotations
+
 __all__ = ["search", "SCHOLARLY_AVAILABLE"]
 
 SCHOLARLY_AVAILABLE = False

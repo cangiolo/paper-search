@@ -40,16 +40,29 @@ except ImportError as e:
     print(f"Error importing modules: {e}", file=sys.stderr)
     sys.exit(1)
 
-def _get_json(url: str, timeout: int = 10):
+_NO_PROXY_OPENER = None
+
+def _get_json(url: str, timeout: int = 10, bypass_proxy: bool = False):
     import urllib.request
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    if bypass_proxy:
+        global _NO_PROXY_OPENER
+        if _NO_PROXY_OPENER is None:
+            _NO_PROXY_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        with _NO_PROXY_OPENER.open(req, timeout=timeout) as r:
+            return json.loads(r.read().decode("utf-8"))
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
 def check_unpaywall(doi: str, email: str, timeout: int = 10) -> dict:
     url = f"https://api.unpaywall.org/v2/{doi}?email={email}"
+    # Bypass any HTTP(S) proxy for Unpaywall by default: local interception
+    # proxies (e.g. Clash on 127.0.0.1:7890/7897) can break TLS handshakes to
+    # api.unpaywall.org and cause silent oa_status="unknown". Set
+    # PAPER_FETCH_UNPAYWALL_USE_PROXY=1 to keep the system proxy.
+    bypass = os.environ.get("PAPER_FETCH_UNPAYWALL_USE_PROXY", "") not in ("1", "true", "yes")
     try:
-        data = _get_json(url, timeout=timeout)
+        data = _get_json(url, timeout=timeout, bypass_proxy=bypass)
         loc = data.get("best_oa_location") or {}
         pdf_url = loc.get("url_for_pdf")
         return {

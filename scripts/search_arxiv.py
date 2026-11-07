@@ -1,5 +1,7 @@
 """arXiv 预印本搜索模块。"""
 
+from __future__ import annotations
+
 import ssl
 import urllib.request
 import urllib.parse
@@ -9,7 +11,7 @@ _SSL_CONTEXT = None
 try:
     import certifi
     _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-except ImportError:
+except (ImportError, OSError):
     pass
 
 ARXIV_API = "http://export.arxiv.org/api/query"

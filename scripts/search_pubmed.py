@@ -1,5 +1,7 @@
 """PubMed / NCBI E-utilities 学术文献搜索模块。"""
 
+from __future__ import annotations
+
 import json
 import ssl
 import urllib.request
@@ -10,7 +12,7 @@ _SSL_CONTEXT = None
 try:
     import certifi
     _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-except ImportError:
+except (ImportError, OSError):
     pass
 
 PUBMED_ESEARCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"

@@ -1,5 +1,7 @@
 """Semantic Scholar 学术文献搜索模块。"""
 
+from __future__ import annotations
+
 import json
 import os
 import ssl
@@ -12,7 +14,7 @@ _SSL_CONTEXT = None
 try:
     import certifi
     _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-except ImportError:
+except (ImportError, OSError):
     pass
 
 S2_API_BASE = "https://api.semanticscholar.org/graph/v1"

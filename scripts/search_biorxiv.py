@@ -3,6 +3,8 @@
 OpenAlex 索引了 bioRxiv (S4306402567) 和 medRxiv (S3005729997) 的全部内容。
 """
 
+from __future__ import annotations
+
 import json
 import os
 import ssl
@@ -14,7 +16,7 @@ _SSL_CONTEXT = None
 try:
     import certifi
     _SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-except ImportError:
+except (ImportError, OSError):
     pass
 
 OPENALEX_API = "https://api.openalex.org/works"
